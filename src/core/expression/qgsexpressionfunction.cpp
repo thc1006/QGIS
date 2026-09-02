@@ -9477,7 +9477,7 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
              if ( node->args()->count() > 3 )
              {
                QgsExpressionNode *filterNode = node->args()->at( 3 );
-               referencedVars = filterNode->referencedVariables();
+               referencedVars.unite( filterNode->referencedVariables() );
                referencedCols.unite( filterNode->referencedColumns() );
              }
 
