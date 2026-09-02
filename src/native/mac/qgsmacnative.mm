@@ -43,9 +43,16 @@ public:
   NSImage *_qgisIcon;
 };
 
+class QgsMacNative::QgsUserInitiatedActivity {
+public:
+  id _token = nil;
+  int _count = 0;
+};
+
 QgsMacNative::QgsMacNative()
     : mQgsUserNotificationCenter(
-          new QgsMacNative::QgsUserNotificationCenter()) {
+          new QgsMacNative::QgsUserNotificationCenter()),
+      mUserInitiatedActivity(new QgsMacNative::QgsUserInitiatedActivity()) {
   mQgsUserNotificationCenter->_qgsUserNotificationCenter =
       [[QgsUserNotificationCenterDelegate alloc] init];
   [[NSUserNotificationCenter defaultUserNotificationCenter]
@@ -53,8 +60,20 @@ QgsMacNative::QgsMacNative()
 }
 
 QgsMacNative::~QgsMacNative() {
+  cleanup();
   [mQgsUserNotificationCenter->_qgsUserNotificationCenter dealloc];
   delete mQgsUserNotificationCenter;
+  delete mUserInitiatedActivity;
+}
+
+void QgsMacNative::cleanup() {
+  if (mUserInitiatedActivity->_token) {
+    [[NSProcessInfo processInfo]
+        endActivity:mUserInitiatedActivity->_token];
+    [mUserInitiatedActivity->_token release];
+    mUserInitiatedActivity->_token = nil;
+  }
+  mUserInitiatedActivity->_count = 0;
 }
 
 void QgsMacNative::setIconPath(const QString &iconPath) {
@@ -82,7 +101,7 @@ void QgsMacNative::openFileExplorerAndSelectFile(const QString &path) {
 }
 
 QgsNative::Capabilities QgsMacNative::capabilities() const {
-  return NativeDesktopNotifications;
+  return NativeDesktopNotifications | NativeUserInitiatedActivities;
 }
 
 QgsNative::NotificationResult QgsMacNative::showDesktopNotification(
@@ -144,4 +163,40 @@ bool QgsMacNative::hasDarkTheme() {
   // NSAppearanceNameDarkAqua is not in SDK headers
   // fallback to light theme
   return false;
+}
+
+void QgsMacNative::beginUserInitiatedActivity(const QString &reason) {
+  ++mUserInitiatedActivity->_count;
+  if (mUserInitiatedActivity->_count != 1) {
+    return;
+  }
+
+  NSString *activityReason = reason.isEmpty()
+                                 ? @"QGIS user-initiated processing"
+                                 : reason.toNSString();
+  mUserInitiatedActivity->_token = [[[NSProcessInfo processInfo]
+      beginActivityWithOptions:NSActivityUserInitiatedAllowingIdleSystemSleep
+                        reason:activityReason] retain];
+}
+
+void QgsMacNative::endUserInitiatedActivity() {
+  if (mUserInitiatedActivity->_count == 0) {
+    return;
+  }
+
+  --mUserInitiatedActivity->_count;
+  if (mUserInitiatedActivity->_count != 0) {
+    return;
+  }
+
+  if (mUserInitiatedActivity->_token) {
+    [[NSProcessInfo processInfo]
+        endActivity:mUserInitiatedActivity->_token];
+    [mUserInitiatedActivity->_token release];
+    mUserInitiatedActivity->_token = nil;
+  }
+}
+
+int QgsMacNative::userInitiatedActivityCount() const {
+  return mUserInitiatedActivity->_count;
 }

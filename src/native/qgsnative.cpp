@@ -65,6 +65,12 @@ bool QgsNative::hasDarkTheme()
   return false;
 }
 
+void QgsNative::beginUserInitiatedActivity( const QString & )
+{}
+
+void QgsNative::endUserInitiatedActivity()
+{}
+
 bool QgsNative::openTerminalAtPath( const QString & )
 {
   return false;

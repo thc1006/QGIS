@@ -46,6 +46,7 @@ class NATIVE_EXPORT QgsNative : public QObject
       NativeDesktopNotifications = 1 << 1, //!< Native desktop notifications are supported. See showDesktopNotification().
       NativeFilePropertiesDialog = 1 << 2, //!< Platform can show a native "file" (or folder) properties dialog.
       NativeOpenTerminalAtPath = 1 << 3,   //!< Platform can open a terminal (command line) at a specific path
+      NativeUserInitiatedActivities = 1 << 4, //!< Platform can prioritize user-initiated activities. See beginUserInitiatedActivity().
     };
     Q_DECLARE_FLAGS( Capabilities, Capability )
 
@@ -242,6 +243,37 @@ class NATIVE_EXPORT QgsNative : public QObject
      * \since QGIS 3.4
      */
     virtual void onRecentProjectsChanged( const std::vector<RecentProjectProperties> &recentProjects );
+
+    /**
+     * Starts an operating-system activity for work explicitly requested by the user.
+     *
+     * Implementations may use this to prevent application throttling while lengthy
+     * user-initiated work is running. Every call must be paired with a call to
+     * endUserInitiatedActivity(). Overlapping activities are supported.
+     *
+     * The \a reason is an implementation-specific description of the work.
+     *
+     * This method is only supported when the interface returns the
+     * NativeUserInitiatedActivities flag for capabilities(). The default
+     * implementation does nothing.
+     *
+     * \see endUserInitiatedActivity()
+     * \since QGIS 4.4
+     */
+    virtual void beginUserInitiatedActivity( const QString &reason );
+
+    /**
+     * Ends an operating-system activity previously started by
+     * beginUserInitiatedActivity().
+     *
+     * This method is only supported when the interface returns the
+     * NativeUserInitiatedActivities flag for capabilities(). The default
+     * implementation does nothing.
+     *
+     * \see beginUserInitiatedActivity()
+     * \since QGIS 4.4
+     */
+    virtual void endUserInitiatedActivity();
 
   signals:
 

@@ -29,6 +29,8 @@ class NATIVE_EXPORT QgsMacNative : public QgsNative
     explicit QgsMacNative();
     ~QgsMacNative() override;
 
+    void cleanup() override;
+
     //! reset the application icon used in the notification
     void setIconPath( const QString &iconPath = QString() );
 
@@ -39,10 +41,18 @@ class NATIVE_EXPORT QgsMacNative : public QgsNative
     QgsNative::NotificationResult showDesktopNotification( const QString &summary, const QString &body, const NotificationSettings &settings ) override;
 
     bool hasDarkTheme() override;
+    void beginUserInitiatedActivity( const QString &reason ) override;
+    void endUserInitiatedActivity() override;
 
   private:
     class QgsUserNotificationCenter;
     QgsUserNotificationCenter *mQgsUserNotificationCenter = nullptr;
+
+    class QgsUserInitiatedActivity;
+    QgsUserInitiatedActivity *mUserInitiatedActivity = nullptr;
+
+    int userInitiatedActivityCount() const;
+    friend class TestQgsMacNative;
 };
 
 
