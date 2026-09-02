@@ -209,6 +209,20 @@ class TestQgsExpressionCustomFunctions(unittest.TestCase):
         exp = QgsExpression("referenced_columns_set()")
         self.assertEqual(set(exp.referencedColumns()), {"a", "b"})
 
+    def testAggregateReferencedColumnsPreserveExpressionVariables(self):
+        expressions = [
+            "aggregate('target', 'array_agg', @parent, filter:=true)",
+            'aggregate(\'target\', \'array_agg\', var("variable_name"), filter:=true)',
+        ]
+        for expression in expressions:
+            with self.subTest(expression=expression):
+                exp = QgsExpression(expression)
+                self.assertFalse(exp.hasParserError(), exp.parserErrorString())
+                self.assertEqual(
+                    set(exp.referencedColumns()),
+                    {QgsFeatureRequest.ALL_ATTRIBUTES},
+                )
+
     def testHandlesNull(self):
         context = QgsExpressionContext()
         QgsExpression.registerFunction(self.null_mean)
