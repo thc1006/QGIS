@@ -32,6 +32,7 @@
 using namespace Qt::StringLiterals;
 
 #ifdef HAVE_OPENCL
+#include <QMutex>
 #ifdef QGISDEBUG
 #include <chrono>
 #include "qgsmaprendererjob.h"
@@ -281,13 +282,22 @@ QgsRasterBlock *QgsHillshadeRenderer::block( int bandNo, const QgsRectangle &ext
       // Note that result buffer is an image
       cl::Buffer resultLineBuffer( ctx, CL_MEM_WRITE_ONLY, outputDataTypeSize * width, nullptr, nullptr );
 
+      static QMutex programCacheMutex;
       static std::map<Qgis::DataType, cl::Program> programCache;
-      cl::Program program = programCache[inputBlock->dataType()];
-      if ( !program.get() )
+      cl::Program program;
       {
-        // Create a program from the kernel source
-        programCache[inputBlock->dataType()] = QgsOpenClUtils::buildProgram( source, QgsOpenClUtils::ExceptionBehavior::Throw );
-        program = programCache[inputBlock->dataType()];
+        const QMutexLocker locker( &programCacheMutex );
+        const auto programIt = programCache.find( inputBlock->dataType() );
+        if ( programIt == programCache.cend() )
+        {
+          // Create a program from the kernel source
+          program = QgsOpenClUtils::buildProgram( source, QgsOpenClUtils::ExceptionBehavior::Throw );
+          programCache.emplace( inputBlock->dataType(), program );
+        }
+        else
+        {
+          program = programIt->second;
+        }
       }
 
       // Disable program cache when developing and testing cl program

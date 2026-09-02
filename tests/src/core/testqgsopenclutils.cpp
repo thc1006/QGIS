@@ -14,6 +14,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <atomic>
 #include <chrono>
 
 #include "qgsapplication.h"
@@ -22,12 +23,14 @@
 #include <QObject>
 #include <QString>
 #include <QTemporaryFile>
+#include <QtConcurrentMap>
 
 using namespace Qt::StringLiterals;
 
 //header for class being tested
 #include <qgsopenclutils.h>
 #include <qgshillshaderenderer.h>
+#include <qgsrasterdataprovider.h>
 #include <qgsrasterlayer.h>
 
 class TestQgsOpenClUtils : public QObject
@@ -48,6 +51,7 @@ class TestQgsOpenClUtils : public QObject
     void testContext();
     void testDevices();
     void testActiveDeviceVersion();
+    void testConcurrentHillshadeGPU();
 
     // For benchmarking performance testing
     void testHillshadeCPU();
@@ -201,6 +205,37 @@ void TestQgsOpenClUtils::_testMakeHillshade( const int loops )
     // 200x200 px gives even times on my testing machine
     renderer.block( 0, mFloat32RasterLayer->extent(), 200, 200 );
   }
+}
+
+void TestQgsOpenClUtils::testConcurrentHillshadeGPU()
+{
+  QgsOpenClUtils::setEnabled( true );
+
+  constexpr int jobCount = 8;
+  const QgsRectangle extent = mFloat32RasterLayer->extent();
+  std::vector<std::unique_ptr<QgsRasterDataProvider>> providers;
+  providers.reserve( jobCount );
+  QVector<QgsRasterDataProvider *> jobs;
+  jobs.reserve( jobCount );
+
+  for ( int i = 0; i < jobCount; ++i )
+  {
+    std::unique_ptr<QgsRasterDataProvider> provider( mFloat32RasterLayer->dataProvider()->clone() );
+    QVERIFY( provider );
+    provider->moveToThread( nullptr );
+    jobs.append( provider.get() );
+    providers.emplace_back( std::move( provider ) );
+  }
+
+  std::atomic_int failures = 0;
+  QtConcurrent::blockingMap( jobs, [extent, &failures]( QgsRasterDataProvider *provider ) {
+    QgsHillshadeRenderer renderer( provider, 1, 35.0, 5000.0 );
+    const std::unique_ptr<QgsRasterBlock> block( renderer.block( 0, extent, 200, 200 ) );
+    if ( !block || block->isEmpty() )
+      failures.fetch_add( 1, std::memory_order_relaxed );
+  } );
+
+  QCOMPARE( failures.load( std::memory_order_relaxed ), 0 );
 }
 
 void TestQgsOpenClUtils::testHillshadeGPU()
